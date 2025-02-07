@@ -1,52 +1,34 @@
 //create web server
+//create a web server
 const http = require('http');
 const fs = require('fs');
-const url = require('url');
 const path = require('path');
-const comments = [];
+const { parse } = require('querystring');
+const { parse: parseUrl } = require('url');
+
 const server = http.createServer((req, res) => {
-    //parse url
-    const {pathname} = url.parse(req.url);
-    const method = req.method;
-    if (pathname === '/' && method === 'GET') {
-        fs.readFile(path.resolve(__dirname, 'index.html'), (err, data) => {
-            if (err) {
-                res.writeHead(500, {
-                    'Content-Type': 'text/plain'
-                });
-                res.end('500 Server Error');
-                return;
-            }
-            res.writeHead(200, {
-                'Content-Type': 'text/html'
-            });
-            res.end(data);
-        });
-    } else if (pathname === '/comments' && method === 'GET') {
-        res.writeHead(200, {
-            'Content-Type': 'application/json'
-        });
-        res.end(JSON.stringify(comments));
-    } else if (pathname === '/comments' && method === 'POST') {
-        let str = '';
-        req.on('data', data => {
-            str += data.toString();
+    const { url } = req;
+    if (url === '/') {
+        fs.createReadStream(path.resolve(__dirname, 'index.html')).pipe(res);
+    } else if (url === '/comment' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
         });
         req.on('end', () => {
-            const comment = JSON.parse(str);
-            comments.push(comment);
-            res.writeHead(200, {
-                'Content-Type': 'application/json'
-            });
-            res.end(JSON.stringify(comment));
+            const { comment } = parse(body);
+            fs.appendFileSync(path.resolve(__dirname, 'comments.txt'), `${comment}\n`);
+            res.end();
         });
+    } else if (url === '/comments' && req.method === 'GET') {
+        const comments = fs.readFileSync(path.resolve(__dirname, 'comments.txt'), 'utf8');
+        res.end(comments);
     } else {
-        res.writeHead(404, {
-            'Content-Type': 'text/plain'
-        });
-        res.end('404 Not Found');
+        res.statusCode = 404;
+        res.end();
     }
 });
+
 server.listen(3000, () => {
     console.log('Server is running at http://localhost:3000');
 });
